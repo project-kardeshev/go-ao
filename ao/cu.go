@@ -18,16 +18,24 @@ type CuAPIs interface {
 }
 
 func (cuClient *CuClient) DryRun(input DryRunInput, processId string) (result *Result, err error) {
+	var cuResult Result
+	
 	response, err := cuClient.client.R().
 		SetBody(input).
 		SetQueryParam("process-id", processId).
+		SetResult(&cuResult).  // Add this line
 		Post("/dry-run")
 
 	if err != nil {
 		return nil, err
 	}
 
-	return response.Result().(*Result), err
+	// Check for successful status codes
+	if response.StatusCode() < 200 || response.StatusCode() >= 300 {
+		return nil, fmt.Errorf("HTTP %d: %s", response.StatusCode(), response.String())
+	}
+
+	return &cuResult, nil  // Change this line
 }
 
 func (cuClient *CuClient) Result(id string, processId string) (result *Result, err error) {
