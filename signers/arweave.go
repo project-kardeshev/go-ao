@@ -22,7 +22,26 @@ func (arweaveSigner *ArweaveSigner) CreateAndSignDataItem(
 		return arweaveSigner.itemSigner.CreateAndSignItem(data, target, anchor, tags)
 }
 
-
+/*
+	NewArweaveSigner creates a new ArweaveSigner.
+	
+	wallet: The JWK to use for signing.
+	
+	Returns:
+		A new ArweaveSigner.
+		An error if the signer or item signer creation fails.
+	Example:
+		// read wallet from file
+		wallet, err := os.ReadFile("wallet.json")
+		if err != nil {
+			log.Fatal(err)
+		}
+		// create signer
+		signer, err := NewArweaveSigner(wallet)
+		if err != nil {
+			log.Fatal(err)
+		}
+*/
 func NewArweaveSigner(wallet JWKByteInterface) (DataItemSigner, error) {
 
 	signer, signerErr := goar.NewSigner(wallet)

@@ -23,6 +23,22 @@ func (ethereumSigner *EthereumSigner) CreateAndSignDataItem(
 		return ethereumSigner.itemSigner.CreateAndSignItem(data, target, anchor, tags)
 }
 
+/*
+	NewEthereumSigner creates a new EthereumSigner.
+	
+	wallet: The wallet to use for signing.
+	
+	Returns:
+		A new EthereumSigner.
+		An error if the signer or item signer creation fails.
+	Example:
+		privateKey := "0x1234567890123456789012345678901234567890"
+		signer, err := NewEthereumSigner(privateKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	
+*/
 func NewEthereumSigner(wallet string) (DataItemSigner, error) {
 
 	signer, signerErr := goether.NewSigner(wallet)
