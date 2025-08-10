@@ -1,10 +1,11 @@
 package ao
 
 import (
+	"errors"
 	"strconv"
 	"time"
+
 	goarTypes "github.com/everFinance/goar/types"
-	resty "github.com/go-resty/resty/v2"
 	signers "github.com/project-kardeshev/go-ao/signers"
 )
 
@@ -46,93 +47,90 @@ func ApplyMessageProtocolTags(tags []goarTypes.Tag) []goarTypes.Tag {
 
 
 type ProcessClient struct {
-	ProcessId string
-	CuUrl string
-    cuClient *resty.Client
-	MuUrl string
-	muClient *resty.Client
+	ProcessId any // string or nil
+    cuClient CuAPIs
+	muClient MuAPIs
 	dataItemSigner signers.DataItemSigner
 }
 
 func (processClient *ProcessClient) Read(input DryRunInput) (*Result, error) {
-	response, err := processClient.cuClient.R().
-		SetBody(input).
-		Post("/dry-run?process-id=" + processClient.ProcessId)
-
-    result := response.Result().(*Result)
-
-	return result, err
+    if processClient.ProcessId == nil {
+        return nil, errors.New("processId is nil, spawn a process or set it")
+    }
+	return processClient.cuClient.DryRun(input, processClient.ProcessId.(string))
 }
 
 func (processClient *ProcessClient) Write(input WriteInput) (id string, result *Result, err error) {
+    if processClient.ProcessId == nil {
+        return "", nil, errors.New("processId is nil, spawn a process or set it")
+    }
     dataItem, err := processClient.dataItemSigner.CreateAndSignDataItem(
-        []byte(input.Data),
-        input.Process,
-        input.Anchor,
-        ApplyMessageProtocolTags(input.Tags),
+        []byte(Coalesce[string](input.Data, "")),
+        Coalesce[string](&input.Process, StubArweaveId),
+        Coalesce[string](&input.Anchor, StubArweaveId),
+        ApplyMessageProtocolTags(Coalesce[[]goarTypes.Tag](input.Tags, []goarTypes.Tag{
+            {
+                Name: "SDK",
+                Value: "github.com/project-kardeshev/go-ao",
+            },
+        })),
     )
     if err != nil {
         return "", nil, err
     }
 
-    messageResponse, err := processClient.muClient.R().
-        SetBody(dataItem.ItemBinary).
-        SetHeader("Content-Type", "application/octet-stream").
-        SetHeader("Accept", "application/json").
-        Post("/")
+    messageId, err := processClient.muClient.PostAoMessage(dataItem)
 
     if err != nil {
-        return "stub-id", nil, err
+        return "", nil, err
     }
 
-    messageId := messageResponse.Result().(map[string]any)["id"].(string)
+    messageResult, err := processClient.cuClient.Result(messageId, processClient.ProcessId.(string))
 
-    messageResult, err := processClient.cuClient.R().
-        Get("/result/" + messageId + "?process-id=" + processClient.ProcessId)
-
-    return messageId, messageResult.Result().(*Result), err
+    return messageId, messageResult, err
 }
 
 func (processClient *ProcessClient) Spawn(input SpawnInput) (id string, result *Result, err error) {
+    // Remove the & - these are already strings, not pointers
+    data := Coalesce[string](input.Data, "")  // Type assert the interface{}
+    target := Coalesce[string](input.Target, StubArweaveId)
+    anchor := Coalesce[string](input.Anchor, StubArweaveId)
+
     dataItem, err := processClient.dataItemSigner.CreateAndSignDataItem(
-        []byte(input.Data.(string)),
-        input.Target,
-        input.Anchor,
+        []byte(data),
+        target,
+        anchor,
         ApplySpawnProtocolTags(input.Tags, input.Module, input.Authority, input.Scheduler),
     )
 
     if err != nil {
-        return "stub-id", nil, err
+        return "", nil, err
     }
-
-    messageResponse, err := processClient.muClient.R().
-        SetBody(dataItem.ItemBinary).
-        SetHeader("Content-Type", "application/octet-stream").
-        SetHeader("Accept", "application/json").
-        Post("/")
+    // In this case, the messageId is the spawned processId
+    messageId, err := processClient.muClient.PostAoMessage(dataItem)
 
     if err != nil {
-        return "stub-id", nil, err
+        return "", nil, err
     }
 
-    messageId := messageResponse.Result().(map[string]any)["id"].(string)
+    messageResult, err := processClient.cuClient.Result(messageId, messageId)
 
-    messageResult, err := processClient.cuClient.R().
-        Get("/result/" + messageId + "?process-id=" + processClient.ProcessId)
+    if err != nil {
+        return "", nil, err
+    }
 
-    return messageId, messageResult.Result().(*Result), err
+    if processClient.ProcessId == nil {
+        processClient.ProcessId = messageId
+    }
+
+    return messageId, messageResult, err
 }
 
-
-
-
-func NewProcessClient(processId string, cuUrl string, muUrl string, dataItemSigner signers.DataItemSigner) AOClient {
+func NewProcessClient(processId any, cuUrl string, muUrl string, dataItemSigner signers.DataItemSigner) AOClient {
 	return &ProcessClient{
 		ProcessId: processId,
-		CuUrl: cuUrl,
-		cuClient: resty.New().SetBaseURL(cuUrl).SetRedirectPolicy(resty.FlexibleRedirectPolicy(10)),
-		MuUrl: muUrl,
-		muClient: resty.New().SetBaseURL(muUrl).SetRedirectPolicy(resty.FlexibleRedirectPolicy(10)),
+		cuClient: NewCuClient(cuUrl),
+		muClient: NewMuClient(muUrl),
 		dataItemSigner: dataItemSigner,
 	}
 }
