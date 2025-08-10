@@ -22,6 +22,10 @@ func (arweaveSigner *ArweaveSigner) CreateAndSignDataItem(
 		return arweaveSigner.itemSigner.CreateAndSignItem(data, target, anchor, tags)
 }
 
+func (arweaveSigner *ArweaveSigner) GetAddress() string {
+	return arweaveSigner.Address
+}
+
 /*
 	NewArweaveSigner creates a new ArweaveSigner.
 	

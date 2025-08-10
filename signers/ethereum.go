@@ -23,6 +23,10 @@ func (ethereumSigner *EthereumSigner) CreateAndSignDataItem(
 		return ethereumSigner.itemSigner.CreateAndSignItem(data, target, anchor, tags)
 }
 
+func (ethereumSigner *EthereumSigner) GetAddress() string {
+	return ethereumSigner.Address
+}
+
 /*
 	NewEthereumSigner creates a new EthereumSigner.
 	
