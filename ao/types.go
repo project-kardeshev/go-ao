@@ -33,7 +33,7 @@ type DryRunInput struct {
 
 type WriteInput struct {
 	Process string 
-	Anchor string
+	Anchor *string
 	Data string 
 	Tags []goarTypes.Tag
 }

@@ -47,7 +47,7 @@ func ApplyMessageProtocolTags(tags []goarTypes.Tag) []goarTypes.Tag {
 
 
 type ProcessClient struct {
-	ProcessId any // string or nil
+	ProcessId *string
     cuClient CuAPIs
 	muClient MuAPIs
 	dataItemSigner signers.DataItemSigner
@@ -57,17 +57,30 @@ func (processClient *ProcessClient) Read(input DryRunInput) (*Result, error) {
     if processClient.ProcessId == nil {
         return nil, errors.New("processId is nil, spawn a process or set it")
     }
-	return processClient.cuClient.DryRun(input, processClient.ProcessId.(string))
+	return processClient.cuClient.DryRun(input, *processClient.ProcessId)
 }
 
 func (processClient *ProcessClient) Write(input WriteInput) (id string, result *Result, err error) {
     if processClient.ProcessId == nil {
         return "", nil, errors.New("processId is nil, spawn a process or set it")
     }
+    
+    // Generate random anchor if none provided
+    var anchor string
+    if input.Anchor != nil {
+        anchor = *input.Anchor
+    } else {
+        randomAnchor, err := CreateRandomAnchor()
+        if err != nil {
+            return "", nil, err
+        }
+        anchor = randomAnchor
+    }
+    
     dataItem, err := processClient.dataItemSigner.CreateAndSignDataItem(
         []byte(Coalesce[string](input.Data, "")),
-        Coalesce[string](&input.Process, StubArweaveId),
-        Coalesce[string](&input.Anchor, StubArweaveId),
+        *processClient.ProcessId,
+        anchor,
         ApplyMessageProtocolTags(Coalesce[[]goarTypes.Tag](input.Tags, []goarTypes.Tag{
             {
                 Name: "SDK",
@@ -85,7 +98,7 @@ func (processClient *ProcessClient) Write(input WriteInput) (id string, result *
         return "", nil, err
     }
 
-    messageResult, err := processClient.cuClient.Result(messageId, processClient.ProcessId.(string))
+    messageResult, err := processClient.cuClient.Result(messageId, *processClient.ProcessId)
 
     return messageId, messageResult, err
 }
@@ -120,13 +133,13 @@ func (processClient *ProcessClient) Spawn(input SpawnInput) (id string, result *
     }
 
     if processClient.ProcessId == nil {
-        processClient.ProcessId = messageId
+        processClient.ProcessId = &messageId
     }
 
     return messageId, messageResult, err
 }
 
-func NewProcessClient(processId any, cuUrl string, muUrl string, dataItemSigner signers.DataItemSigner) AOClient {
+func NewProcessClient(processId *string, cuUrl string, muUrl string, dataItemSigner signers.DataItemSigner) AOClient {
 	return &ProcessClient{
 		ProcessId: processId,
 		cuClient: NewCuClient(cuUrl),

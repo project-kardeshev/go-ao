@@ -72,8 +72,10 @@ func TestReadProcess(t *testing.T) {
 	}
 	fmt.Println("Signer Created")
 
+	processId := "JASO-FO1NKxAs2HXFtb7SA2e3u1Q2TbOCq-3wM03bVY"
+
 	processClient := NewProcessClient(
-		"JASO-FO1NKxAs2HXFtb7SA2e3u1Q2TbOCq-3wM03bVY", // previously spawned process 
+		&processId, // previously spawned process 
 		DefaultCuUrl, 
 		DefaultMuUrl, 
 		signer,
@@ -104,4 +106,57 @@ func TestReadProcess(t *testing.T) {
 	}
 
 	fmt.Println("Read test completed successfully")
+}
+
+func TestWriteProcess(t *testing.T) {
+	fmt.Println("TestWriteProcess")
+	fmt.Println("Loading wallet")
+	wallet, err := os.ReadFile("test_wallet.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Println("Wallet loaded")
+
+	signer, err := signers.NewArweaveSigner(wallet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("Signer Created")
+
+	processId := "JASO-FO1NKxAs2HXFtb7SA2e3u1Q2TbOCq-3wM03bVY"
+
+	processClient := NewProcessClient(
+		&processId, // previously spawned process 
+		DefaultCuUrl, 
+		DefaultMuUrl, 
+		signer,
+	)
+	fmt.Println("ProcessClient Created")
+
+	fmt.Println("Writing to process")
+	messageId, result, err := processClient.Write(WriteInput{
+		Data: "Handlers.add('info', {Action = 'Info'}, function(msg) msg.reply({Name = 'go-ao'})  end)",
+		Tags: []goarTypes.Tag{
+			{Name: "Action", Value: "Eval"},
+			{Name: "SDK", Value: "github.com/project-kardeshev/go-ao"},
+		},
+	})
+
+	fmt.Printf("Write result - MessageId: %s, Result: %+v, Error: %v\n", messageId, result, err)
+
+	if err != nil {
+		t.Fatal("Failed to write to process:", err)
+	}
+
+	if messageId == "" {
+		t.Fatal("Message ID is empty")
+	}
+
+	if result == nil {
+		t.Fatal("Write result is nil")
+	}
+
+	fmt.Println("Write test completed successfully")
+	fmt.Println("MessageId:", messageId)
 }
